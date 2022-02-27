@@ -1,7 +1,7 @@
 # HyDRA
 
 
-![Custom filter banks](https://github.com/OmidSaj/HyDRA/blob/main/Assets/MFB_demo.mp4)
+![Custom filter banks](https://github.com/OmidSaj/HyDRA/blob/main/Assets/MFB_demo.gif)
 
 ![HyDRA models](https://github.com/OmidSaj/HyDRA/blob/main/Assets/HyDRA.jpg)
 
