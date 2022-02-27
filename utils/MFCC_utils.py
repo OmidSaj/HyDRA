@@ -46,7 +46,7 @@ def get_MFCC(signal,sample_rate,frame_size,frame_stride,nfilt):
     z = numpy.zeros((pad_signal_length - signal_length))
     pad_signal = numpy.append(signal, z) # Pad Signal to make sure that all frames have equal number of samples without truncating any samples from the original signal
     
-    indices = numpy.tile(numpy.arange(0, frame_length), (num_frames, 1)) + numpy.tile(numpy.arange(0, num_frames * frame_step, frame_step), (frame_length, 1)).T
+    indices = numpy.tile(numpy.arange(0, frame_length), (num_frames+1, 1)) + numpy.tile(numpy.arange(0, (num_frames+1) * frame_step, frame_step), (frame_length, 1)).T
     frames = pad_signal[indices.astype(numpy.int32, copy=False)]
    
     NFFT=512
