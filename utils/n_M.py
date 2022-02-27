@@ -52,12 +52,11 @@ iShape=1       # Rec
 i_f_first=0    # 
 nfilt_keep=24 
 delta_on=0
-feat_type='MSFB'
 
 # batch_size_train=100
 # batch_size_eval=2000
 
-exp_id='01_XZ'   # the experiment ID
+exp_id='01_M'   # the experiment ID
 
 import tensorflow as tf
 import numpy as np
@@ -111,7 +110,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         data_i=np.load(fname_i)
         X=data_i['X_i']
         Y=data_i['Y_i']
-        Z=data_i['Z_i']
+        # Z=data_i['Z_i']
         # W=data_i['W_i']
         # F=data_i['F_i']     
         
@@ -120,7 +119,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         
         # input_mask-=np.mean(input_mask,axis=1,keepdims=True) # w.r.t time dim
 
-        return ([X,Z], Y)
+        return (X, Y)
  
 def get_Y(set_generator):
     for i in range(set_generator.n_batch):
@@ -145,12 +144,12 @@ def build_train_hydra(i_sim,Save_Dir,train_generator_i,val_generator_i):
     
     reg_kernel_D= L1L2(l1=1e-5, l2=1e-5)
     reg_bias_D=L1L2(l1=1e-5, l2=1e-5)
-    
+
     # Hydra
     X = Input(shape=(None, nFilt))
     # W = Input(shape=(None, W_0.shape[-1]))    # Wavelet input
     
-    Z = Input(shape=Z_0.shape)
+    # Z = Input(shape=Z_0.shape)
     
     # Recurrent Branch
     X_RNN=Masking(mask_value=0.0, input_shape=(None, nFilt))(X)
@@ -166,12 +165,12 @@ def build_train_hydra(i_sim,Save_Dir,train_generator_i,val_generator_i):
     # W_RNN=GRU(50, activation='tanh',dropout=drop_rate_GRU, return_sequences=False,
     #                         bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(W_RNN)
                             
-    BNeck=concat([X_RNN, Z])
-    BNeck=Dense(500, activation='relu', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
+    # BNeck=concat([X_RNN, W_RNN, Z])
+    BNeck=Dense(500, activation='relu', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(X_RNN)
     BNeck=Dense(500, activation='tanh', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
     Y=Dense(1, activation='relu', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
     
-    model_Hydra= Model([X, Z], Y)
+    model_Hydra= Model(X, Y)
     # print(model_Hydra.summary())
 
     # if shuffle_id==0:
@@ -458,4 +457,3 @@ print('--------Ensemble-----------')
 MAE_test_avg=DL_evaluator(exp_id,model_S_bin)
 print('Test avg MAE:           %1.6f'%(MAE_test_avg)) 
 
-from n_ZW import *

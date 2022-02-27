@@ -2,7 +2,7 @@ from UtilLibs_W import *
 import gc
 from tensorflow.keras import backend as K
 from tensorflow.keras.regularizers import L1L2
-from tensorflow.keras.layers import Input, Dense, Lambda, Activation, LayerNormalization
+from tensorflow.keras.layers import Input, Dense, Lambda, Activation
 from tensorflow.keras.layers import concatenate as concat
 from tensorflow.keras.models import Model
 import glob
@@ -17,13 +17,10 @@ normFact=Drift_limit
 # Learning Hyperparamtersets
 # =============================================================================
 n_epoch=200
-patience=20
+patience=10
 drop_rate_GRU=0.08
 verbose=1
 batch_size=100
-
-drop_rate_dense=0.2
-n_MoteCarlo_Samples=20
 
 Eta_list=[1,3,5,7]
 augFact=1.2
@@ -45,33 +42,6 @@ def eval_r(Y_true,Y_pred):
     MAE=np.mean(diff)
     MSE=np.mean(diff2)
     return MAE,MSE
-
-# For the bayesian approach, a custom loss is defined as follows:
-def mae_Bayesian(y_true, y_pred):
-    output_list = []
-    for i in range(n_MoteCarlo_Samples):                                       
-        output_list.append(mae_loss(y_true, y_pred))
-    
-    Monty_sample_bin = K.stack(output_list,axis=0)  
-    loss_Bayesian=K.mean(Monty_sample_bin,axis=0)  # expected value of monte carlo dropout sample
-    return loss_Bayesian
-# A custom model_evaluator is needed to get the expected values + uncertainty
-def Monty_Model_Reg(set_generator,model_test,normFact,batch_size=1200):
-    DO_sample_list=[]
-    print('Performing MCS...')
-    for i in range(n_MoteCarlo_Samples):
-        
-        DO_sample_list.append(model_test.predict(set_generator)*normFact)
-    DO_sample_list=np.array(DO_sample_list)
-    
-    RegMean=np.mean(DO_sample_list,axis=0)
-    RegStd=np.std(DO_sample_list,axis=0)
-#    print(SoftMaxBin.shape)
-#    print(np.amin(SoftmaxStd))
-#    print(np.amax(SoftmaxStd))
-    return RegMean,RegStd,DO_sample_list
-
-
     
 # Pick HP set:
 iFr=1          # 2 seconds
@@ -82,14 +52,11 @@ iShape=1       # Rec
 i_f_first=0    # 
 nfilt_keep=24 
 delta_on=0
-feat_type='MSFB'
-
-n_sim=4
 
 # batch_size_train=100
 # batch_size_eval=2000
 
-exp_id='02_XZW_B'   # the experiment ID
+exp_id='01_MZ'   # the experiment ID
 
 import tensorflow as tf
 import numpy as np
@@ -144,17 +111,15 @@ class DataGenerator(tf.keras.utils.Sequence):
         X=data_i['X_i']
         Y=data_i['Y_i']
         Z=data_i['Z_i']
-        W=data_i['W_i']
+        # W=data_i['W_i']
         # F=data_i['F_i']     
         
         del data_i.f
         data_i.close()
         
-        # del data_i
-        
         # input_mask-=np.mean(input_mask,axis=1,keepdims=True) # w.r.t time dim
 
-        return ([X,Z,W], Y)
+        return ([X,Z], Y)
  
 def get_Y(set_generator):
     for i in range(set_generator.n_batch):
@@ -179,10 +144,10 @@ def build_train_hydra(i_sim,Save_Dir,train_generator_i,val_generator_i):
     
     reg_kernel_D= L1L2(l1=1e-5, l2=1e-5)
     reg_bias_D=L1L2(l1=1e-5, l2=1e-5)
-
+    
     # Hydra
     X = Input(shape=(None, nFilt))
-    W = Input(shape=(None, W_0.shape[-1]))    # Wavelet input
+    # W = Input(shape=(None, W_0.shape[-1]))    # Wavelet input
     
     Z = Input(shape=Z_0.shape)
     
@@ -194,25 +159,18 @@ def build_train_hydra(i_sim,Save_Dir,train_generator_i,val_generator_i):
     X_RNN=GRU(50, activation='tanh',dropout=drop_rate_GRU, return_sequences=False,
                             bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(X_RNN)
 
-    W_RNN=Masking(mask_value=0.0, input_shape=(None, W_0.shape[-1]))(W)
-    W_RNN=GRU(300, activation='tanh',dropout=drop_rate_GRU,return_sequences=True,
-                            bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(W_RNN)
-    W_RNN=GRU(50, activation='tanh',dropout=drop_rate_GRU, return_sequences=False,
-                            bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(W_RNN)
+    # W_RNN=Masking(mask_value=0.0, input_shape=(None, W_0.shape[-1]))(W)
+    # W_RNN=GRU(300, activation='tanh',dropout=drop_rate_GRU,return_sequences=True,
+    #                         bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(W_RNN)
+    # W_RNN=GRU(50, activation='tanh',dropout=drop_rate_GRU, return_sequences=False,
+    #                         bias_regularizer=reg_bias,kernel_regularizer=reg_kernel)(W_RNN)
                             
-    BNeck=concat([X_RNN, W_RNN, Z])
-    # BNeck = LayerNormalization(axis=-1)(BNeck)
+    BNeck=concat([X_RNN, Z])
     BNeck=Dense(500, activation='relu', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
-    # BNeck = LayerNormalization(axis=-1)(BNeck)
-    BNeck=Dropout(drop_rate_dense)(BNeck,training=True)
-    # BNeck = LayerNormalization(axis=-1)(BNeck)
     BNeck=Dense(500, activation='tanh', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
-    # BNeck = LayerNormalization(axis=-1)(BNeck)
-    BNeck=Dropout(drop_rate_dense)(BNeck,training=True)
     Y=Dense(1, activation='relu', bias_regularizer=reg_bias_D,kernel_regularizer=reg_kernel_D)(BNeck)
     
-    model_Hydra= Model([X, Z, W], Y)
-
+    model_Hydra= Model([X, Z], Y)
     # print(model_Hydra.summary())
 
     # if shuffle_id==0:
@@ -304,17 +262,8 @@ def DL_worker(exp_id,shuffle_id):
         # Load and eval
         model_load=load_model(model_filename_save_i,custom_objects={'mae_loss': mae_loss})
         # Y_pred_train=model_load.predict(X_train_opt)*normFact
-        for i_smp in range(n_MoteCarlo_Samples):
-            if i_smp==0:
-                Y_pred_val=model_load.predict(val_generator)*normFact
-                Y_pred_test=model_load.predict(test_generator)*normFact
-            else:
-                Y_pred_val+=model_load.predict(val_generator)*normFact
-                Y_pred_test+=model_load.predict(test_generator)*normFact
-                
-        Y_pred_val=Y_pred_val/n_MoteCarlo_Samples    
-        Y_pred_test=Y_pred_test/n_MoteCarlo_Samples
-        
+        Y_pred_val=model_load.predict(val_generator)*normFact
+        Y_pred_test=model_load.predict(test_generator)*normFact
         # Y_train_opt=Y_train_opt*normFact.
         Y_val_opt=get_Y(val_generator)
         Y_test_opt=get_Y(test_generator)
@@ -435,22 +384,13 @@ def DL_evaluator(exp_id,model_S_bin):
     
         # Load and eval
         model_load=load_model(model_filename_save,custom_objects={'mae_loss': mae_loss})
-        _,_,do_bin_i=Monty_Model_Reg(test_generator,model_load,normFact)
-        if i_model==0:
-            do_bin_test=do_bin_i
-        else:
-            do_bin_test=np.vstack((do_bin_test,do_bin_i))
-        
-        # Y_pred_test_bin.append(Y_pred_test_i)
-        # Y_std_test_bin.append(Y_std_test_i)
+        Y_pred_test_bin.append(model_load.predict(test_generator)*normFact)
         # Y_train_opt=Y_train_opt*normFact
 
-    # Y_pred_test_bin=np.array(Y_pred_test_bin)
-    # Y_std_test_bin=np.array(Y_std_test_bin)
-    Y_test_opt_scaled=Y_test_opt*normFact
-        
-    Y_pred_test_std=np.std(do_bin_test,axis=0)
-    Y_pred_test_avg=np.mean(do_bin_test,axis=0)
+    Y_pred_test_bin=np.array(Y_pred_test_bin)
+    
+    Y_pred_test_std=np.std(Y_pred_test_bin,axis=0)
+    Y_pred_test_avg=np.mean(Y_pred_test_bin,axis=0)
 
         
     MAE_test,MSE_test=eval_r(Y_test_opt_scaled,Y_pred_test_avg)
@@ -482,7 +422,6 @@ def DL_evaluator(exp_id,model_S_bin):
     plt.close()
     np.savez_compressed(Sub_Dir_1+'/EvalData_test_avg.npz',
                        Y_true_test=Y_test_opt_scaled,Y_pred_test=Y_pred_test_avg,
-                       Y_pred_test_std=Y_pred_test_std,do_bin_test=do_bin_test,
                        MAE_test=MAE_test,MSE_test=MSE_test,
                        obs_info_test=obs_info_test)
 
@@ -517,3 +456,5 @@ print('std          %1.6f   %1.6f'%(np.std(MAE_val_bin),np.std(MAE_test_bin)))
 print('--------Ensemble-----------') 
 MAE_test_avg=DL_evaluator(exp_id,model_S_bin)
 print('Test avg MAE:           %1.6f'%(MAE_test_avg)) 
+
+from n_ZW import *
