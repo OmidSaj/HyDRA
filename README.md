@@ -19,7 +19,7 @@ This repository is the official implementation of "Filter Banks and Hybrid Deep 
 ## Citing this work
 Please cite the following paper if you have used this repositpry. 
 
-Sajedi, S, Liang, X. "Filter Banks and Hybrid Deep Learning Architectures for Performance-based Seismic Assessments of Bridges", Paper under review in the journal of Structural Engineering (citation record will be updated soon)
+[Sajedi, S., and Liang, X. (2022). "Filter Banks and Hybrid Deep Learning Architectures for Performance-Based Seismic Assessments of Bridges." Journal of Structural Engineering, 148(12)](https://ascelibrary.org/doi/abs/10.1061/%28ASCE%29ST.1943-541X.0003501)
 
 ## Acknowledgment
 * Parts of the code regarding the extraction of filter banks from the raw signals is based on Haytham Fayek's excellet [tutorial on Speech Processing for Machine Learning](https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html). 
